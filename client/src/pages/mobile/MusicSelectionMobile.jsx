@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -12,8 +12,7 @@ import MetadataMobile from '../../components/mobile/MetadataMobile';
 import MenuForPlaylistMobile from '../../components/mobile/MenuForPlaylistMobile';
 import MenuForMusiclistMobile from '../../components/mobile/MenuForMusiclistMobile';
 
-const SERVER_ENDPOINT =
-  process.env.REACT_APP_ENDPOINT || window.location.origin;
+const SERVER_ENDPOINT = process.env.REACT_APP_ENDPOINT || window.location.origin;
 
 const MobileContainer = styled.div`
   margin-top: ${({ size }) => size.start}px;
@@ -62,8 +61,7 @@ const SearchButton = styled.div`
 `;
 
 const SearchBarContainer = styled.div`
-  visibility: ${({ expandSearchBar }) =>
-    expandSearchBar ? 'visible' : 'hidden'};
+  visibility: ${({ expandSearchBar }) => (expandSearchBar ? 'visible' : 'hidden')};
   position: absolute;
   width: 95vw;
   left: 2.5vw;
@@ -86,8 +84,7 @@ const SearchBarContainer = styled.div`
   }
 
   transform-origin: top left;
-  animation: ${({ fadeOut }) =>
-    fadeOut ? 'fadeoutSearchBar 1s' : 'fadeinSearchBar 1s'};
+  animation: ${({ fadeOut }) => (fadeOut ? 'fadeoutSearchBar 1s' : 'fadeinSearchBar 1s')};
 
   @keyframes fadeinSearchBar {
     from {
@@ -153,106 +150,119 @@ const ChooseMusicMobile = ({ tags, setTags }) => {
   const searchRef = useRef(null);
   const focusRef = useRef(null);
 
-  const fadeOutHandler = () => {
+  const navigateHandler = useCallback(() => {
+    navigate('/pomodoro');
+  }, []);
+
+  const fadeInHandler = useCallback(() => {
+    setFadeOut(false);
+    setExpandSearchBar(true);
+    setTimeout(() => {
+      focusRef.current.focus();
+    }, 500);
+  }, []);
+
+  const fadeOutHandler = useCallback(() => {
     setFadeOut(true);
     setTimeout(() => {
       setFadeOut(false);
       setExpandSearchBar(false);
     }, 500);
-  };
+  }, []);
 
-  const searchHandler = (e) => {
-    if (e.key !== 'Enter') return;
+  const searchHandler = useCallback(
+    (e) => {
+      if (e.key !== 'Enter') return;
 
-    if (!searchText) {
-      setDisplayModalMessage('검색어를 입력해 주세요.');
-      return;
-    }
+      if (!searchText) {
+        setDisplayModalMessage('검색어를 입력해 주세요.');
+        return;
+      }
 
-    const youtubeRegEx = [
-      /(?<=\w*youtu\.be\/)(.*)/g,
-      /(?<=\w*youtube\.com\/watch\?v=)(.*)(?=[&])|(?<=\w*youtube\.com\/watch\?v=)(.*)/g,
-    ];
-    for (const reg of youtubeRegEx) {
-      const result = searchText.match(reg);
-      if (!result) continue;
-      //(result).then((data) => {
-      const endpoint = `${SERVER_ENDPOINT}/api/playlists/0`;
-      const body = {
-        music_url: result,
-      };
+      const youtubeRegEx = [
+        /(?<=\w*youtu\.be\/)(.*)/g,
+        /(?<=\w*youtube\.com\/watch\?v=)(.*)(?=[&])|(?<=\w*youtube\.com\/watch\?v=)(.*)/g,
+      ];
+      for (const reg of youtubeRegEx) {
+        const result = searchText.match(reg);
+        if (!result) continue;
+        //(result).then((data) => {
+        const endpoint = `${SERVER_ENDPOINT}/api/playlists/0`;
+        const body = {
+          music_url: result,
+        };
+        axios
+          .post(endpoint, body)
+          .then((res) => {
+            const newTags = [...tags];
+            let tag_id;
+            if (newTags[0].tag_id < 0) tag_id = newTags[0].tag_id - 1;
+            else tag_id = -1;
+            const Musics = [
+              {
+                music_id: Math.floor(Math.random() * 1000000) + 1000000,
+                music_name: res.data.title,
+                music_url: res.data.music_url,
+                music_time: res.data.duration,
+                music_thumbnail: res.data.thumbnailUrl,
+                music_embeddable: res.data.embeddable,
+              },
+            ];
+            const payload = {
+              tag_id,
+              tag_name: res.data.title.slice(0, 8),
+              Musics,
+            };
+            newTags.unshift(payload);
+            setTags(newTags);
+            setCurrentTagIndex(tag_id);
+            setSearchText('');
+            fadeOutHandler();
+            if (!res.data.embeddable)
+              setDisplayModalMessage(
+                '이 음악은 게시자가 사용할 수 없도록 지정한 영상입니다. 다른 영상을 사용해 주세요.'
+              );
+          })
+          .catch((err) => {
+            setDisplayModalMessage('검색 결과가 없습니다. Youtube 주소가 올바른지 확인해 주세요.');
+            console.dir(err);
+          });
+        return;
+      }
+
+      const endpoint = `${SERVER_ENDPOINT}/api/search?q=${searchText}`;
       axios
-        .post(endpoint, body)
+        .get(endpoint)
         .then((res) => {
+          if (res.data.result.length === 0) {
+            setDisplayModalMessage('검색 결과가 없습니다.');
+            return;
+          }
           const newTags = [...tags];
           let tag_id;
           if (newTags[0].tag_id < 0) tag_id = newTags[0].tag_id - 1;
           else tag_id = -1;
-          const Musics = [
-            {
-              music_id: Math.floor(Math.random() * 1000000) + 1000000,
-              music_name: res.data.title,
-              music_url: res.data.music_url,
-              music_time: res.data.duration,
-              music_thumbnail: res.data.thumbnailUrl,
-              music_embeddable: res.data.embeddable,
-            },
-          ];
           const payload = {
             tag_id,
-            tag_name: res.data.title.slice(0, 8),
-            Musics,
+            tag_name: searchText,
+            Musics: res.data.result,
           };
           newTags.unshift(payload);
           setTags(newTags);
           setCurrentTagIndex(tag_id);
           setSearchText('');
           fadeOutHandler();
-          if (!res.data.embeddable)
-            setDisplayModalMessage(
-              '이 음악은 게시자가 사용할 수 없도록 지정한 영상입니다. 다른 영상을 사용해 주세요.'
-            );
         })
         .catch((err) => {
-          setDisplayModalMessage(
-            '검색 결과가 없습니다. Youtube 주소가 올바른지 확인해 주세요.'
-          );
+          if (err?.response.status === 400) {
+            setDisplayModalMessage('검색 결과가 없습니다.');
+            return;
+          }
           console.dir(err);
         });
-      return;
-    }
-
-    const endpoint = `${SERVER_ENDPOINT}/api/search?q=${searchText}`;
-    axios
-      .get(endpoint)
-      .then((res) => {
-        if (res.data.result.length === 0) {
-          setDisplayModalMessage('검색 결과가 없습니다.');
-          return;
-        }
-        const newTags = [...tags];
-        let tag_id;
-        if (newTags[0].tag_id < 0) tag_id = newTags[0].tag_id - 1;
-        else tag_id = -1;
-        const payload = {
-          tag_id,
-          tag_name: searchText,
-          Musics: res.data.result,
-        };
-        newTags.unshift(payload);
-        setTags(newTags);
-        setCurrentTagIndex(tag_id);
-        setSearchText('');
-        fadeOutHandler();
-      })
-      .catch((err) => {
-        if (err?.response.status === 400) {
-          setDisplayModalMessage('검색 결과가 없습니다.');
-          return;
-        }
-        console.dir(err);
-      });
-  };
+    },
+    [searchText, tags]
+  );
 
   useEffect(() => {
     if (!thisRef || size.start) return;
@@ -266,24 +276,12 @@ const ChooseMusicMobile = ({ tags, setTags }) => {
   return (
     <MobileContainer ref={thisRef} size={size}>
       {displayModalMessage && (
-        <ConfirmModal
-          text={displayModalMessage}
-          handleModal={() => setDisplayModalMessage(null)}
-        />
+        <ConfirmModal text={displayModalMessage} handleModal={() => setDisplayModalMessage(null)} />
       )}
       <TopGhostDiv />
       <SearchBarAndTags>
         <SearchButton>
-          <SearchIcon
-            ref={searchRef}
-            onClick={() => {
-              setFadeOut(false);
-              setExpandSearchBar(true);
-              setTimeout(() => {
-                focusRef.current.focus();
-              }, 500);
-            }}
-          />
+          <SearchIcon ref={searchRef} onClick={fadeInHandler} />
         </SearchButton>
         <SearchBarContainer expandSearchBar={expandSearchBar} fadeOut={fadeOut}>
           <MiddleGhostDiv />
@@ -300,11 +298,7 @@ const ChooseMusicMobile = ({ tags, setTags }) => {
         <MusicTagsMobile
           tags={tags}
           currentTagIndex={
-            currentTagIndex
-              ? currentTagIndex
-              : tags?.length > 0
-              ? tags[0]['tag_id']
-              : null
+            currentTagIndex ? currentTagIndex : tags?.length > 0 ? tags[0]['tag_id'] : null
           }
           setCurrentTagIndex={setCurrentTagIndex}
         />
@@ -313,32 +307,19 @@ const ChooseMusicMobile = ({ tags, setTags }) => {
       <SwiperMusicMobile
         searchResult={tags}
         currentTagIndex={
-          currentTagIndex
-            ? currentTagIndex
-            : tags?.length > 0
-            ? tags[0]['tag_id']
-            : null
+          currentTagIndex ? currentTagIndex : tags?.length > 0 ? tags[0]['tag_id'] : null
         }
         currentMusic={currentMusic}
         setCurrentMusic={setCurrentMusic}
       />
-      <MetadataMobile
-        currentMusic={currentMusic}
-        currentPlaylist={currentPlaylist}
-      />
+      <MetadataMobile currentMusic={currentMusic} currentPlaylist={currentPlaylist} />
       <ButtonsMobile>
         <MenuForPlaylistMobile
           size={size}
           currentPlaylist={currentPlaylist}
           setCurrentPlaylist={setCurrentPlaylist}
         />
-        <TomatoPlayIcon
-          width="16vw"
-          height="16vw"
-          onClick={() => {
-            navigate('/pomodoro');
-          }}
-        />
+        <TomatoPlayIcon width="16vw" height="16vw" onClick={navigateHandler} />
         <MenuForMusiclistMobile size={size} currentPlaylist={currentPlaylist} />
       </ButtonsMobile>
     </MobileContainer>

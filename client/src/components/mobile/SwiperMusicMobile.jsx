@@ -1,13 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo, useCallback } from 'react';
 import styled from 'styled-components';
 import { Swiper, SwiperSlide } from 'swiper/react';
 
-import SwiperCore, {
-  EffectCoverflow,
-  Pagination,
-  Mousewheel,
-  Keyboard,
-} from 'swiper';
+import SwiperCore, { EffectCoverflow, Pagination, Mousewheel, Keyboard } from 'swiper';
 
 import 'swiper/css';
 import 'swiper/css/effect-coverflow';
@@ -15,8 +10,7 @@ import 'swiper/css/pagination';
 import { ReactComponent as Loading } from '../../images/loading.svg';
 import PreviewPopupMobile from './PreviewPopupMobile';
 
-const SERVER_ENDPOINT =
-  process.env.REACT_APP_ENDPOINT || window.location.origin;
+const SERVER_ENDPOINT = process.env.REACT_APP_ENDPOINT || window.location.origin;
 
 SwiperCore.use([EffectCoverflow, Pagination, Mousewheel, Keyboard]);
 
@@ -53,33 +47,30 @@ const LoadingPlaceHolder = styled.div`
   background: linear-gradient(lightgray, var(--color-background), lightgray);
 `;
 
-const SwiperMusicMobile = ({
-  searchResult,
-  currentTagIndex,
-  currentMusic,
-  setCurrentMusic,
-}) => {
+const SwiperMusicMobile = ({ searchResult, currentTagIndex, currentMusic, setCurrentMusic }) => {
   const [displayPreview, setDisplayPreview] = useState(false);
   const swiperPos = useRef(null);
 
-  let searchIndex,
-    idx = -1;
-  if (!searchResult?.length || !currentTagIndex) searchIndex = null;
-  if (Array.isArray(searchResult))
-    idx = searchResult.findIndex((item) => item.tag_id == currentTagIndex);
-  searchIndex = idx === -1 ? null : idx;
+  const searchIndex = useMemo(() => {
+    if (!searchResult?.length || !currentTagIndex) return null;
+    const idx = searchResult.findIndex((item) => item.tag_id == currentTagIndex);
+    return idx === -1 ? null : idx;
+  }, [searchResult, currentTagIndex]);
 
-  const StoreSlideInfo = (swiper) => {
+  const StoreSlideInfo = useCallback((swiper) => {
     const data = swiper.slides[swiper.activeIndex].dataset;
     setCurrentMusic(data);
-  };
+  }, []);
+
+  const displayPreviewHandler = useCallback(() => setDisplayPreview(true), []);
+  const hidePreviewHandler = useCallback(() => setDisplayPreview(false), []);
 
   return (
     <SwiperContainer ref={swiperPos}>
       {displayPreview && (
         <PreviewPopupMobile
           URL={currentMusic?.music_url}
-          closeHandler={() => setDisplayPreview(false)}
+          closeHandler={hidePreviewHandler}
           posY={swiperPos.current}
         />
       )}
@@ -114,10 +105,8 @@ const SwiperMusicMobile = ({
                   data-music_time={item.music_time}
                   data-music_url={item.music_url}
                   data-music_id={item.music_id}
-                  data-music_embeddable={
-                    item['music_embeddable'] === false ? 'false' : 'true'
-                  }
-                  onClick={() => setDisplayPreview(true)}
+                  data-music_embeddable={item['music_embeddable'] === false ? 'false' : 'true'}
+                  onClick={displayPreviewHandler}
                 >
                   <img
                     src={
@@ -135,11 +124,7 @@ const SwiperMusicMobile = ({
               return (
                 <SwiperSlide key={index}>
                   <LoadingPlaceHolder className="loading-placeholder">
-                    <Loading
-                      style={{ margin: '25% 0' }}
-                      width="8rem"
-                      height="8rem"
-                    />
+                    <Loading style={{ margin: '25% 0' }} width="8rem" height="8rem" />
                   </LoadingPlaceHolder>
                 </SwiperSlide>
               );
